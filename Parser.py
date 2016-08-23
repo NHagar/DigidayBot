@@ -4,10 +4,12 @@ import re
 import feedparser
 import tweepy
 from random import randint
-from nltk.tokenize import sent_tokenize
+from bs4 import BeautifulSoup
+from nltk import sent_tokenize
+from datetime import datetime
 
-auth = tweepy.OAuthHandler(*)
-auth.set_access_token(*)
+auth = tweepy.OAuthHandler('x', 'x')
+auth.set_access_token('x-x', 'x')
 
 api = tweepy.API(auth)
 
@@ -17,7 +19,6 @@ conn = sqlite3.connect(DATABASE)
 conn.row_factory = sqlite3.Row
 c = conn.cursor()
 
-l = []
 
 def record_links(url):
 
@@ -29,27 +30,22 @@ def record_links(url):
     #establish loop
     while True:
         for entry in d.entries:
-            #Grab first sentence
-            l = []
-            fp = entry.summary
-            fp = fp.replace("<p>", "")
-            fp = fp.replace(("</p>"), "")
-            fp = sent_tokenize(fp)
-            for item in fp[0:5]:
-                if len(item) <= 116:
-                    l.append(item)
-            if len(l) >= 1:
-                content = l[0]
-                l = []
-            else:
-                content = entry.title
-                l = []
 		#check for duplicates
             c.execute('SELECT * FROM RSSContent WHERE url=?', (entry.link,))
             if not c.fetchall():
-                t = (entry.link, entry.title, time.strftime("%Y-%m-%d", entry.updated_parsed), content)
+                content = entry.summary
+                text = BeautifulSoup(content, 'lxml').get_text()
+                fp = sent_tokenize(text)
+                graf = entry.content[0].value
+                txt = BeautifulSoup(graf, 'lxml').get_text()
+                pf = sent_tokenize(txt)
+                l = fp[0:2] + pf
+                for i in l:
+                    if len(i) <= 116:
+                        twt = i
+                        break
+                t = (entry.link, twt, time.strftime("%Y-%m-%d", entry.updated_parsed), content)
                 c.execute('INSERT INTO RSSContent (`url`, `title`,`dateAdded`, `content`) VALUES (?,?,?,?)', t)
-                print l
                 conn.commit()
 
         #Flush stories not published today
@@ -92,18 +88,15 @@ def record_links(url):
             tweeted="yes"
             c.execute('UPDATE RSSContent SET `tweeted`=? WHERE `title`=?', (tweeted, tweet_text))
             conn.commit()
-            time.sleep(2)
-#            api.update_status(full_tweet)
+            api.update_status(full_tweet)
 
             #set to run again in 45-60 min
-#            minutes = randint(45, 60)
-#            print "The next tweet will go out in %s minutes" % (minutes)
-#            time.sleep(60*minutes)
+            minutes = randint(45, 60)
+            print "This tweet went out at %s" % (datetime.now().time())
+            print "The next tweet will go out in %s minutes" % (minutes)
+            time.sleep(60*minutes)
         except:
-            pass
-#            print "You've been tweeting a lot"
-#            time.sleep(30)
+            print "You've been tweeting a lot"
+            time.sleep(30)
 
 record_links('http://digiday.com/feed')
-
-#Alt text
